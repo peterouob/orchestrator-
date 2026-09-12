@@ -62,7 +62,7 @@ func (d *Docker) Run() DockerResult {
 	io.Copy(os.Stdout, reader)
 
 	rp := container.RestartPolicy{
-		Name: container.RestartPolicyMode(d.Config.Name),
+		Name: container.RestartPolicyDisabled,
 	}
 
 	r := container.Resources{
@@ -94,7 +94,10 @@ func (d *Docker) Run() DockerResult {
 		return DockerResult{Error: err}
 	}
 
-	out, err := d.Client.ContainerLogs(ctx, resp.ID, container.LogsOptions{})
+	out, err := d.Client.ContainerLogs(ctx, resp.ID, container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+	})
 	if err != nil {
 		log.Printf("Error getting logs for container %s: %v \n", resp.ID, err)
 		return DockerResult{Error: err}
@@ -107,6 +110,22 @@ func (d *Docker) Run() DockerResult {
 		Result:      "success",
 	}
 
+}
+
+func (d *Docker) Stop(id string) DockerResult {
+	log.Printf("Stop the container for id: %s", id)
+	ctx := context.Background()
+	if err := d.Client.ContainerStop(ctx, id, container.StopOptions{}); err != nil {
+		log.Printf("Error container stop %s:%v\n", id, err)
+		return DockerResult{Error: err}
+	}
+
+	if err := d.Client.ContainerRemove(ctx, id, container.RemoveOptions{}); err != nil {
+		log.Printf("Error container remove %s:%v\n", id, err)
+		return DockerResult{Error: err}
+	}
+
+	return DockerResult{Action: "stop", ContainerId: id}
 }
 
 type DockerResult struct {

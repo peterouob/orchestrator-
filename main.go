@@ -2,10 +2,12 @@ package main
 
 import (
 	"fmt"
+	"os"
 	"time"
 	"uuid"
 
 	"github.com/golang-collections/collections/queue"
+	"github.com/moby/moby/client"
 	"github.com/peterouob/orchestrator/manager"
 	"github.com/peterouob/orchestrator/node"
 	"github.com/peterouob/orchestrator/task"
@@ -66,4 +68,51 @@ func main() {
 	}
 
 	fmt.Printf("%v\n", n)
+
+	fmt.Println("crate a tast container")
+	dockerTask, crateResult := crateContainer()
+	if crateResult.Error != nil {
+		fmt.Printf("%v", crateResult.Error)
+		os.Exit(1)
+	}
+
+	time.Sleep(time.Second * 5)
+	fmt.Printf("stopping container %s\n", crateResult.ContainerId)
+	_ = stopContainer(dockerTask, crateResult.ContainerId)
+}
+
+func crateContainer() (*task.Docker, *task.DockerResult) {
+
+	c := task.Config{
+		Name:  "test-container-1",
+		Image: "postgres:13",
+		Env: []string{
+			"POSTGRES_USER=cube",
+			"POSTGRES_PASSWORD=password",
+		},
+	}
+
+	dc, _ := client.NewClientWithOpts(client.FromEnv)
+	d := task.Docker{
+		Client: dc,
+		Config: c,
+	}
+
+	result := d.Run()
+	if result.Error != nil {
+		fmt.Printf("%v\n", result.Error)
+		return nil, nil
+	}
+	fmt.Printf("Container %s is running with config %v\n", result.ContainerId, c)
+	return &d, &result
+}
+
+func stopContainer(d *task.Docker, id string) *task.DockerResult {
+	result := d.Stop(id)
+	if result.Error != nil {
+		fmt.Printf("%v\n", result.Error)
+		return nil
+	}
+	fmt.Printf("Container %s has been stopped and removed\n", result.ContainerId)
+	return &result
 }
